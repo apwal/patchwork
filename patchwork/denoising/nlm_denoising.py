@@ -125,7 +125,7 @@ class NLMDenoising(object):
             "Creating the mask image based on the padding value '%s'.", padding)
         # ToDo
         remaining_voxels = self.size
-        logger.info("Remaining voxels to process '%s%'.",
+        logger.info("Remaining voxels to process '%s' percent.",
                     int(remaining_voxels / self.size * 100.))
 
         # > compute mean and variance images
