@@ -107,11 +107,15 @@ def get_denoised_patch(cnp.ndarray[float, ndim=3] to_denoise_array,
                 nb_of_search_selements += 1
 
     # Get patch around the current location.
+    cdef:
+        float central_patch[patch_size]
     to_denoise_ptr = <float *>to_denoise_array.data
     central_patch = get_patch(
         index, to_denoise_ptr, to_denoise_strides, full_patch_size)
                 
     # Go through all the search indices
+    cdef:
+        float neighbor_patch[patch_size]
     with nogil, cython.boundscheck(False), cython.wraparound(False):
 
         # Search parallel loop
@@ -181,6 +185,8 @@ def get_denoised_patch(cnp.ndarray[float, ndim=3] to_denoise_array,
         free(search)
         free(lower_bound)
         free(upper_bound)
+        free(central_patch)
+        free(neighbor_patch)
 
     return patch, wsum, wmax
 
@@ -206,8 +212,13 @@ cdef inline float ptr_value_from_array_index(float *array_ptr,
 @cython.boundscheck(False)
 @cython.wraparound(False)
 @cython.cdivision(True)
-cdef get_patch(size_t *array_index, float *array_ptr, size_t *half_patch_shape,
-               size_t *array_shape):
+cdef get_patch(size_t *array_index,
+               float *array_ptr,
+               size_t *array_strides,
+               size_t *half_patch_shape,
+               size_t patch_size
+               size_t *array_shape,
+               float *patch) nogil:
     """ Get a patch at a specific index.
 
     If the surrounding patch goes beyound the image boudaries, return an empty
@@ -221,35 +232,56 @@ cdef get_patch(size_t *array_index, float *array_ptr, size_t *half_patch_shape,
         the array from which the patch is extracted.
     half_patch_shape: unsigned long[3]
         the half patch shape.
+    patch_size: unsigned long
+        the patch number of elements.
     array_shape: unsigned long[3]
         the shape of the array.
-    
-    Returns
-    -------
-    patch: float[patch_shape]
-        the patch at the specified position.
+    patch: float[patch_size]
+        the result patch at the specified position.
     """
+    cdef:
+        # Intern parameters
+        # > iterators
+        size_t i
+        # > array iterators
+        size_t x, y, z
+        # > patch lower and upper bounds
+        size_t lower_bound[3]
+        size_t upper_bound[3]
+        # > check if the patch neighborhood is valid
+        int is_valid=1
+        # > neighbor patch index
+        size_t neighbor_index[3]
+
     # Create an appropriate patch region around the current voxel index
     # neglecting pixels close to the boundaries
     for i from 0 <= i < 3:
-        lower_bound[i] = array_index[i] - half_spatial_bandwidth[i]
-        upper_bound[i] = array_index[i] + half_spatial_bandwidth[i]
-        to_denoise_strides[i] = to_denoise_array.strides[i]
-        
-    for x from lower_bound[0] <= x <= upper_bound[0]:
-        for y from lower_bound[1] <= y <= upper_bound[1]:
-            for z from lower_bound[2] <= z <= upper_bound[2]:
+        lower_bound[i] = array_index[i] - half_patch_shape[i]
+        upper_bound[i] = array_index[i] + half_patch_shape[i]
 
-    lower_bound = index - half_patch_shape
-    upper_bound = index + half_patch_shape
+        # Check that the patch is inside the image
+        if lower_bound[i] < 0 or upper_bound[i] >= array_shape[i]:
+            is_valid = 0
+            break
 
-    # Check that the patch is inside the image
-    if (lower_bound < 0).any() or (upper_bound >= shape).any():
-        logger.debug("Reach the border when creating patch at position "
-                     "'%s'.", index)
-        return numpy.zeros(patch_shape, dtype=dtype)
+    # If the patch is not inside the image return an empty patch
+    if is_valid == 0:
+        for i  from 0 <= i < patch_size:
+            patch[i] = 0
+    else:
+        i = 0
+        for x from lower_bound[0] <= x <= upper_bound[0]:
+            for y from lower_bound[1] <= y <= upper_bound[1]:
+                for z from lower_bound[2] <= z <= upper_bound[2]:
+                    neighbor_index[0] = x
+                    neighbor_index[1] = y
+                    neighbor_index[2] = z
+                    patch[i] = ptr_value_from_array_index(
+                        array_ptr, neighbor_index, array_strides, 3)
+                    i += 1
 
-    # Get the patch
-    return array[lower_bound[0]: upper_bound[0] + 1,
-                 lower_bound[1]: upper_bound[1] + 1,
-                 lower_bound[2]: upper_bound[2] + 1]
+    # Free memory
+    with nogil:
+        free(lower_bound)
+        free(upper_bound)
+        free(neighbor_index)
