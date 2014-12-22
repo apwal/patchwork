@@ -6,6 +6,10 @@
 # http://www.cecill.info/licences/Licence_CeCILL-B_V1-en.html for details.
 ################################################################################
 
+""" Command to build extension:
+> python setup.py build_ext --inplace
+"""
+
 # System include
 from ez_setup import use_setuptools
 use_setuptools()
@@ -19,7 +23,7 @@ cmdclass = {"build_ext": build_ext}
 
 ext_modules = []
 for modulename, other_sources, language in (
-        ("patchwork.denoising.nlm_core", [], "c")):
+        ("patchwork.denoising.nlm_core", [], "c"), ):
     pyx_src = os.path.join(*modulename.split(".")) + ".pyx"
     ext_modules.append(Extension(modulename, [pyx_src] + other_sources,
                                  language=language,
