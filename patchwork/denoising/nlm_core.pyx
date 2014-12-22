@@ -113,7 +113,9 @@ def get_denoised_patch(cnp.ndarray[float, ndim=3] to_denoise_array,
         to_denoise_strides[i] = to_denoise_array.strides[i]
         patch_size *= full_patch_size[i]
         to_denoise_shape[i] = to_denoise_array.shape[i]
-        
+    
+    # ToDo: Get the nb_of_search_selements
+    search = <Element *>malloc(nb_of_search_selements * sizeof(Element))
     for x from lower_bound[0] <= x <= upper_bound[0]:
         for y from lower_bound[1] <= y <= upper_bound[1]:
             for z from lower_bound[2] <= z <= upper_bound[2]:
@@ -148,7 +150,6 @@ def get_denoised_patch(cnp.ndarray[float, ndim=3] to_denoise_array,
         for i in parallel.prange(0, nb_of_search_selements, schedule="static",
                                  num_threads=nb_of_threads):
 
-
             # Optimize the speed of the patch search
             #if self.use_optimized_strategy: 
             #    is_valid_neighbor = self._check_speed(
@@ -170,10 +171,6 @@ def get_denoised_patch(cnp.ndarray[float, ndim=3] to_denoise_array,
                 - patch_distance(central_patch, neighbor_patches, patch_size) /
                 range_bandwidth)
 
-            # Normalize the patch values
-            for j from 0 <= j < patch_size:
-                neighbor_patches[patch_size * i + j] /= weights[i]
-
         # Keep trace of the maximum weight and compute the weight sum
         # Get the result denoised patch
         for i from 0 <= i < nb_of_search_selements:
@@ -185,19 +182,14 @@ def get_denoised_patch(cnp.ndarray[float, ndim=3] to_denoise_array,
             # Weight sum
             wsum += weights[i]
 
-            # Get the result denoised patch
+            # Get the result denoised normalized patch
             for j from 0 <= j < patch_size:
-                patch_ptr[j] += neighbor_patches[patch_size * i + j]
+                patch_ptr[j] += neighbor_patches[patch_size * i + j] / weights[i]
 
     # Free memory
     with nogil:
-        for i from 0 <= i < nb_of_search_selements:
-            free(search[i].index)
         free(search)
-        free(lower_bound)
-        free(upper_bound)
         free(central_patch)
-        free(to_denoise_shape)
         free(neighbor_patches)
         free(weights)
 
@@ -317,11 +309,6 @@ cdef void get_patch(size_t *array_index,
                         ptr_value_from_array_index(
                             array_ptr, neighbor_index, array_strides, 3))
                     i += 1
-
-    # Free memory
-    free(lower_bound)
-    free(upper_bound)
-    free(neighbor_index)
 
 
 @cython.boundscheck(False)
