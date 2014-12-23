@@ -15,6 +15,7 @@ import scipy.signal
 from patchwork.tools import (
     get_patch, patch_distance, normalize_patch_size, get_patch_elements)
 from patchwork.tools import vector_to_array_index, array_to_vector_index
+from nlm_core import get_average_patch
 
 # Get the logger
 logger = logging.getLogger(__file__)
@@ -50,7 +51,7 @@ class NLMDenoising(object):
                  half_patch_size=1, half_spatial_bandwidth=5, padding=-1,
                  central_point_strategy="weight", blockwise_strategy="blockwise",
                  lower_mean_threshold=0.95, lower_variance_threshold=0.5,
-                 beta=1, use_optimized_strategy=True):
+                 beta=1, use_optimized_strategy=True, use_cython=True):
         """ Initialize the non-local denoising class.
     
         Parameters
@@ -70,10 +71,12 @@ class NLMDenoising(object):
             'fastblockwise'.
         beta: float
             smoothing parameter.
+        use_cython: bool (default True)
+            the cython to speed up the denoised patch creation.
         """
       
         # Class parameters
-        self.to_denoise_array = to_denoise_array
+        self.to_denoise_array = numpy.cast[numpy.single](to_denoise_array)
         self.spacing = numpy .asarray(spacing)
         self.mask_array = mask_array
         self.mean_array = None
@@ -83,7 +86,7 @@ class NLMDenoising(object):
         self.use_optimized_strategy = use_optimized_strategy
         self.lower_mean_threshold = lower_mean_threshold
         self.lower_variance_threshold = lower_variance_threshold
-        self.patch_map = {}
+        self.use_cython = use_cython
 
         # Intern parameters
         self.shape = self.to_denoise_array.shape
@@ -185,18 +188,6 @@ class NLMDenoising(object):
     # Private methods
     ###########################################################################
 
-    def _get_patch_mapping(self):
-        """ Method that load all the patches in memory.
-        """
-        # Information message
-        logger.info("Generate the patch mapping...")
-
-        # Store all patches in memory
-        for vector_index in range(self.to_denoise_array.size):
-            index = vector_to_array_index(vector_index, self.to_denoise_array)
-            patch = get_patch(index, self.to_denoise_array, self.full_patch_size)
-            self.patch_map[tuple(index)] = patch
-
     def _get_search_elements(self, index):
         """ Method that compute the neighbor search indices around the
         current location.
@@ -293,54 +284,66 @@ class NLMDenoising(object):
             the patch power (ie., the sum of all the weights associated to
             the neighbor patches).
         """
-        # Intern parameters
-        # > maximum weight of patches
-        wmax = 0
-        # > sum of weights: used for normalization
-        wsum = 0
+        if not self.use_cython:
+            # Intern parameters
+            # > maximum weight of patches
+            wmax = 0
+            # > sum of weights: used for normalization
+            wsum = 0
 
-        # Allocate the patch result
-        patch = numpy.zeros(self.full_patch_size, dtype=numpy.single)
-        
-        # Get patch around the current location.
-        central_patch = get_patch(
-            index, self.to_denoise_array, self.full_patch_size)
+            # Allocate the patch result
+            patch = numpy.zeros(self.full_patch_size, dtype=numpy.single)
+            
+            # Get patch around the current location.
+            central_patch = get_patch(
+                index, self.to_denoise_array, self.full_patch_size)
 
-        # Compute the search region
-        search_elements = self._get_search_elements(index)
+            # Compute the search region
+            search_elements = self._get_search_elements(index)
 
-        # Go through all the search indices
-        for neighbor_index in search_elements:
+            # Go through all the search indices
+            for neighbor_index in search_elements:
 
-            # Optimize the speed of the patch search
-            if self.use_optimized_strategy: 
-                is_valid_neighbor = self._check_speed(
-                    tuple(index), tuple(neighbor_index))
-            else:
-                is_valid_neighbor = True
+                # Optimize the speed of the patch search
+                if self.use_optimized_strategy: 
+                    is_valid_neighbor = self._check_speed(
+                        tuple(index), tuple(neighbor_index))
+                else:
+                    is_valid_neighbor = True
 
-            # If we are dealing with a valid neighbor
-            if is_valid_neighbor:
+                # If we are dealing with a valid neighbor
+                if is_valid_neighbor:
 
-                # Create the neighbor patch
-                neighbor_patch = get_patch(
-                    neighbor_index, self.to_denoise_array, self.full_patch_size)
+                    # Create the neighbor patch
+                    neighbor_patch = get_patch(
+                        neighbor_index, self.to_denoise_array, self.full_patch_size)
 
-                # Compute the weight associated to the distance between the
-                # central and neighbor patches
-                weight = numpy.exp(
-                    - patch_distance(central_patch, neighbor_patch) /
-                    self.range_bandwidth)
+                    # Compute the weight associated to the distance between the
+                    # central and neighbor patches
+                    weight = numpy.exp(
+                        - patch_distance(central_patch, neighbor_patch) /
+                        self.range_bandwidth)
 
-                # Keep trace of the maximum weight
-                if weight > wmax:
-                    wmax = weight
+                    # Keep trace of the maximum weight
+                    if weight > wmax:
+                        wmax = weight
 
-                # Update the weight sum
-                wsum += weight
+                    # Update the weight sum
+                    wsum += weight
 
-                # Update the result denoised patch
-                patch += neighbor_patch / weight
+                    # Update the result denoised patch
+                    patch += neighbor_patch / weight
+
+        else:
+            # Get patch around the current location.
+            central_patch = get_patch(
+                index, self.to_denoise_array, self.full_patch_size)
+
+            # Use compiled code to do the same steps as the upper python version
+            patch, wsum, wmax = get_average_patch(
+                self.to_denoise_array, index, self.half_spatial_bandwidth,
+                self.half_patch_size, self.full_patch_size, self.range_bandwidth,
+                nb_of_threads=1)
 
         # Deal with the central patch based on the user parameters
         # > add the central patch

@@ -30,19 +30,36 @@ class TestDenoising(unittest.TestCase):
             "half_spatial_bandwidth": 5,
             "padding": -1,
             "central_point_strategy": "weight",
-            "blockwise_strategy": "blockwise",
+            "blockwise_strategy": "fastblockwise",
             "lower_mean_threshold": 0.95,
             "lower_variance_threshold": 0.5,
             "beta": 1,
-            "use_optimized_strategy": True
+            "use_optimized_strategy": True,
+            "use_cython": True
         }
 
     def test_denoising(self):
         """ Test the nlm denoising.
         """
+        self.kwargs["blockwise_strategy"] = "blockwise"
         nlm_filter = NLMDenoising(
             self.to_denoise_array, **self.kwargs)
         denoise_array = nlm_filter.denoise()
+
+    def test_fast_denoising(self):
+        """ Test the nlm denoising: python vs cython.
+        """
+        self.kwargs["blockwise_strategy"] = "fastblockwise"
+        self.kwargs["use_cython"] = True
+        nlm_filter = NLMDenoising(
+            self.to_denoise_array, **self.kwargs)
+        cython_denoise_array = nlm_filter.denoise()
+        self.kwargs["use_cython"] = False
+        nlm_filter = NLMDenoising(
+            self.to_denoise_array, **self.kwargs)
+        python_denoise_array = nlm_filter.denoise()
+        self.assertTrue(
+            numpy.allclose(python_denoise_array, cython_denoise_array ))
     
 
 

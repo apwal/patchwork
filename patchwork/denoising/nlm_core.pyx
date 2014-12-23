@@ -20,7 +20,7 @@ cdef cnp.float32_t inf = numpy.inf
 
 # Some cdefs
 cdef extern from "stdlib.h" nogil:
-    ctypedef unsigned long size_t
+    ctypedef long int size_t
 cdef extern from "math.h" nogil:
     float sqrt(float x)
     float exp(float x)
@@ -37,14 +37,13 @@ ctypedef struct Element:
 @cython.boundscheck(False)
 @cython.wraparound(False)
 @cython.cdivision(True)
-def get_denoised_patch(cnp.ndarray[float, ndim=3] to_denoise_array,
-                       cnp.ndarray[size_t, ndim=1] array_index,
-                       int vector_index,
-                       cnp.ndarray[size_t, ndim=1] half_spatial_bandwidth,
-                       cnp.ndarray[size_t, ndim=1] half_patch_size,
-                       cnp.ndarray[size_t, ndim=1] full_patch_size,
-                       float range_bandwidth,
-                       int nb_of_threads=1):
+def get_average_patch(cnp.ndarray[float, ndim=3] to_denoise_array,
+                      cnp.ndarray[long, ndim=1] array_index,
+                      cnp.ndarray[long, ndim=1] half_spatial_bandwidth,
+                      cnp.ndarray[long, ndim=1] half_patch_size,
+                      cnp.ndarray[long, ndim=1] full_patch_size,
+                      float range_bandwidth,
+                      int nb_of_threads=1):
     """ Method that compute the denoised patch at a specific location.
 
     Parameters
@@ -53,8 +52,6 @@ def get_denoised_patch(cnp.ndarray[float, ndim=3] to_denoise_array,
         the image to denoise.
     array_index: 1-dim array
         the patch central location in the array to denoise.
-    vector_index: int
-        the patch central location in the flatten array to denoise.
     half_spatial_bandwidth: 1-dim array with 3 items
         the half size of the search region.
     half_patch_size: 1-dim array with 3 items
@@ -86,10 +83,11 @@ def get_denoised_patch(cnp.ndarray[float, ndim=3] to_denoise_array,
         float *to_denoise_ptr
         size_t *index_ptr
         # > patch parameters
-        size_t lower_bound[3]
-        size_t upper_bound[3]
+        int lower_bound[3]
+        int upper_bound[3]
         size_t nb_of_search_selements=0
         size_t patch_size=1
+        size_t neighbor_max_size=1
         float *patch_ptr
         size_t *half_patch_size_ptr
         float *central_patch
@@ -111,20 +109,24 @@ def get_denoised_patch(cnp.ndarray[float, ndim=3] to_denoise_array,
         lower_bound[i] = array_index[i] - half_spatial_bandwidth[i]
         upper_bound[i] = array_index[i] + half_spatial_bandwidth[i]
         to_denoise_strides[i] = to_denoise_array.strides[i]
-        patch_size *= full_patch_size[i]
+        patch_size *= full_patch_size[ i]
+        neighbor_max_size *= (2 * half_spatial_bandwidth[i] + 1)
         to_denoise_shape[i] = to_denoise_array.shape[i]
     
     # ToDo: Get the nb_of_search_selements
-    search = <Element *>malloc(nb_of_search_selements * sizeof(Element))
+    search = <Element *>malloc(neighbor_max_size * sizeof(Element))
     for x from lower_bound[0] <= x <= upper_bound[0]:
         for y from lower_bound[1] <= y <= upper_bound[1]:
             for z from lower_bound[2] <= z <= upper_bound[2]:
                 if (x != array_index[0] or y != array_index[1] or
                     z != array_index[2]):
 
+                    # Add the new point in the search region
                     search[nb_of_search_selements].index[0] = x
                     search[nb_of_search_selements].index[1] = y
                     search[nb_of_search_selements].index[2] = z
+
+                    # Keep trace of the search region size
                     nb_of_search_selements += 1
 
     # Get flatten arrays
@@ -140,7 +142,7 @@ def get_denoised_patch(cnp.ndarray[float, ndim=3] to_denoise_array,
     # Go through all the search indices
     weights = <float *>malloc(nb_of_search_selements * sizeof(float))
     neighbor_patches = <float *>malloc(
-        nb_of_search_selements *  patch_size * sizeof(float))
+        nb_of_search_selements * patch_size * sizeof(float))
     patch_ptr = <float *>malloc(patch_size * sizeof(float))
     for i from 0 <= i < patch_size:
         patch_ptr[i] = 0
@@ -163,7 +165,7 @@ def get_denoised_patch(cnp.ndarray[float, ndim=3] to_denoise_array,
             # Create the neighbor patch
             get_patch(search[i].index, to_denoise_ptr, to_denoise_shape, 
                       to_denoise_strides, half_patch_size_ptr, patch_size,
-                      neighbor_patches, i)
+                     neighbor_patches, i)
 
             # Compute the weight associated to the distance between the
             # central and neighbor patches
@@ -185,6 +187,12 @@ def get_denoised_patch(cnp.ndarray[float, ndim=3] to_denoise_array,
             # Get the result denoised normalized patch
             for j from 0 <= j < patch_size:
                 patch_ptr[j] += neighbor_patches[patch_size * i + j] / weights[i]
+
+    # Copy result patch
+    patch = patch.flatten()
+    for i from 0 <= i < patch_size:
+        patch[i] = patch_ptr[i]
+    patch = patch.reshape(full_patch_size)
 
     # Free memory
     with nogil:
@@ -237,13 +245,13 @@ cdef inline float ptr_value_from_array_index(float *array_ptr,
 @cython.wraparound(False)
 @cython.cdivision(True)
 cdef void get_patch(size_t *array_index,
-               float *array_ptr,
-               size_t *array_shape,
-               size_t *array_strides,
-               size_t *half_patch_shape,
-               size_t patch_size,
-               float *patch,
-               size_t patch_offset=0) nogil:
+                    float *array_ptr,
+                    size_t *array_shape,
+                    size_t *array_strides,
+                    size_t *half_patch_shape,
+                    size_t patch_size,
+                    float *patch,
+                    size_t patch_offset=0) nogil:
     """ Get a patch at a specific index.
 
     If the surrounding patch goes beyound the image boudaries, return an empty
@@ -271,12 +279,12 @@ cdef void get_patch(size_t *array_index,
     cdef:
         # Intern parameters
         # > iterators
-        size_t i
+        size_t i, j
         # > array iterators
         size_t x, y, z
         # > patch lower and upper bounds
-        size_t lower_bound[3]
-        size_t upper_bound[3]
+        int lower_bound[3]
+        int upper_bound[3]
         # > check if the patch neighborhood is valid
         int is_valid=1
         # > neighbor patch index
@@ -295,7 +303,7 @@ cdef void get_patch(size_t *array_index,
 
     # If the patch is not inside the image return an empty patch
     if is_valid == 0:
-        for i  from 0 <= i < patch_size:
+        for i from 0 <= i < patch_size:
             patch[patch_size * patch_offset + i] = 0
     else:
         i = 0
