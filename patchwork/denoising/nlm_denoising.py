@@ -15,7 +15,7 @@ import scipy.signal
 from patchwork.tools import (
     get_patch, patch_distance, normalize_patch_size, get_patch_elements)
 from patchwork.tools import vector_to_array_index, array_to_vector_index
-from nlm_core import get_average_patch
+from .nlm_core import get_average_patch
 
 # Get the logger
 logger = logging.getLogger(__file__)
@@ -215,6 +215,7 @@ class NLMDenoising(object):
 
                     # Check we are within the image boundaries
                     neighbor_index = numpy.asarray([x, y, z])
+    
                     if ((neighbor_index > 0).all() and
                         (neighbor_index < self.shape).all() and
                         not (neighbor_index == index).all()):
@@ -284,6 +285,10 @@ class NLMDenoising(object):
             the patch power (ie., the sum of all the weights associated to
             the neighbor patches).
         """
+        # Get patch around the current location.
+        central_patch = get_patch(
+            index, self.to_denoise_array, self.full_patch_size)
+
         if not self.use_cython:
             # Intern parameters
             # > maximum weight of patches
@@ -293,10 +298,6 @@ class NLMDenoising(object):
 
             # Allocate the patch result
             patch = numpy.zeros(self.full_patch_size, dtype=numpy.single)
-            
-            # Get patch around the current location.
-            central_patch = get_patch(
-                index, self.to_denoise_array, self.full_patch_size)
 
             # Compute the search region
             search_elements = self._get_search_elements(index)
@@ -332,13 +333,9 @@ class NLMDenoising(object):
                     wsum += weight
 
                     # Update the result denoised patch
-                    patch += neighbor_patch / weight
+                    patch += neighbor_patch * weight
 
         else:
-            # Get patch around the current location.
-            central_patch = get_patch(
-                index, self.to_denoise_array, self.full_patch_size)
-
             # Use compiled code to do the same steps as the upper python version
             patch, wsum, wmax = get_average_patch(
                 self.to_denoise_array, index, self.half_spatial_bandwidth,

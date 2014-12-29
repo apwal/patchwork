@@ -136,8 +136,8 @@ def get_average_patch(cnp.ndarray[float, ndim=3] to_denoise_array,
 
     # Get patch around the current location.       
     central_patch = <float *>malloc(patch_size * sizeof(float))
-    get_patch(index_ptr, to_denoise_ptr, to_denoise_shape, to_denoise_strides, 
-              half_patch_size_ptr, patch_size, central_patch)
+    _get_patch(index_ptr, to_denoise_ptr, to_denoise_shape, to_denoise_strides, 
+               half_patch_size_ptr, patch_size, central_patch)
                 
     # Go through all the search indices
     weights = <float *>malloc(nb_of_search_selements * sizeof(float))
@@ -163,15 +163,14 @@ def get_average_patch(cnp.ndarray[float, ndim=3] to_denoise_array,
             #if is_valid_neighbor:
 
             # Create the neighbor patch
-            get_patch(search[i].index, to_denoise_ptr, to_denoise_shape, 
-                      to_denoise_strides, half_patch_size_ptr, patch_size,
+            _get_patch(search[i].index, to_denoise_ptr, to_denoise_shape, 
+                       to_denoise_strides, half_patch_size_ptr, patch_size,
                      neighbor_patches, i)
 
             # Compute the weight associated to the distance between the
             # central and neighbor patches
-            weights[i] = exp(
-                - patch_distance(central_patch, neighbor_patches, patch_size) /
-                range_bandwidth)
+            weights[i] = exp(- patch_distance(
+                central_patch, neighbor_patches, patch_size, i) / range_bandwidth)
 
         # Keep trace of the maximum weight and compute the weight sum
         # Get the result denoised patch
@@ -186,7 +185,7 @@ def get_average_patch(cnp.ndarray[float, ndim=3] to_denoise_array,
 
             # Get the result denoised normalized patch
             for j from 0 <= j < patch_size:
-                patch_ptr[j] += neighbor_patches[patch_size * i + j] / weights[i]
+                patch_ptr[j] += neighbor_patches[patch_size * i + j] * weights[i]
 
     # Copy result patch
     patch = patch.flatten()
@@ -202,6 +201,78 @@ def get_average_patch(cnp.ndarray[float, ndim=3] to_denoise_array,
         free(weights)
 
     return patch, wsum, wmax
+
+
+@cython.boundscheck(False)
+@cython.wraparound(False)
+@cython.cdivision(True)
+def get_patch(cnp.ndarray[long, ndim=1] index,
+              cnp.ndarray[float, ndim=3] array,
+              patch_shape,
+              dtype=numpy.single):
+    """ Get a patch at a specific index.
+
+    If the surrounding patch goes beyound the image boudaries, return an empty
+    patch.
+
+    Parameters
+    ----------
+    index: array
+        a valid array index.
+    array: array
+        the array from which the patch is extracted.
+    patch_shape: array
+        the patch shape.
+    dtype: type
+        the output patch type.
+    
+    Returns
+    -------
+    patch: array (patch_shape, )
+        the patch at the specified position.
+    """
+    cdef:
+        # Intern parameters
+        # > input image information
+        size_t array_strides[3]
+        size_t array_shape[3]
+        float *array_ptr
+        size_t *index_ptr
+        # > patch parameters
+        size_t half_patch_shape[3]
+        size_t patch_size=1
+        float *cpatch
+
+    # Allocate output patch
+    patch = numpy.zeros(patch_shape, dtype=dtype)
+
+    # Get input image information
+    for i from 0 <= i < 3:
+        array_strides[i] = array.strides[i]
+        patch_size *= patch_shape[i]
+        array_shape[i] = array.shape[i]
+        half_patch_shape[i] = int((patch_shape[i] - 1) / 2)
+
+    # Get flatten arrays
+    array_ptr = <float *>array.data
+    index_ptr = <size_t *>index.data
+
+    # Get patch around the current location.       
+    cpatch = <float *>malloc(patch_size * sizeof(float))
+    _get_patch(index_ptr, array_ptr, array_shape, array_strides, 
+               half_patch_shape, patch_size, cpatch)
+
+    # Copy result patch
+    patch = patch.flatten()
+    for i from 0 <= i < patch_size:
+        patch[i] = cpatch[i]
+    patch = patch.reshape(patch_shape)
+
+    # Free memory
+    with nogil:
+        free(cpatch)
+
+    return patch
 
 
 ###############################################################################
@@ -244,7 +315,7 @@ cdef inline float ptr_value_from_array_index(float *array_ptr,
 @cython.boundscheck(False)
 @cython.wraparound(False)
 @cython.cdivision(True)
-cdef void get_patch(size_t *array_index,
+cdef void _get_patch(size_t *array_index,
                     float *array_ptr,
                     size_t *array_shape,
                     size_t *array_strides,
@@ -324,7 +395,8 @@ cdef void get_patch(size_t *array_index,
 @cython.cdivision(True)
 cdef inline float patch_distance(float *patch1,
                                  float *patch2,
-                                 size_t patch_size) nogil:
+                                 size_t patch_size,
+                                 size_t patch2_offset=0) nogil:
     """ Compute the distance between two patches.
 
     The metric used is the squared euclidean distance.
@@ -335,6 +407,10 @@ cdef inline float patch_distance(float *patch1,
         a patch that has been flatten.
     patch2: float[patch_size]
         a patch that has been flatten.
+    patch_size: unsigned long
+        the patch number of elements.
+    patch2_offset: unsinged long
+         the patch2 pointer offset.
 
     Returns
     -------
@@ -345,11 +421,13 @@ cdef inline float patch_distance(float *patch1,
         # Intern parameters
         # > iterators
         size_t i
+        size_t offset
         # > squared euclidean distance
         float dist=0
 
     # Compute the squared euclidean distance.
     for i from 0 <= i < patch_size:
-        dist += (patch1[i] - patch2[i]) * (patch1[i] - patch2[i])
+        offset = patch_size * patch2_offset + i
+        dist += (patch1[i] - patch2[offset]) * (patch1[i] - patch2[offset])
 
     return dist

@@ -92,7 +92,7 @@ def get_patch(index, array, patch_shape, dtype=numpy.single):
     
     Returns
     -------
-    patch: array (full_patch size, )
+    patch: array (patch_shape, )
         the patch at the specified position.
     """
     # Intern parameters
