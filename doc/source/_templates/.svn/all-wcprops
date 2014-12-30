@@ -1,0 +1,41 @@
+K 25
+svn:wc:ra_dav:version-url
+V 51
+/svn/capsul/!svn/ver/59/trunk/doc/source/_templates
+END
+class_process.rst
+K 25
+svn:wc:ra_dav:version-url
+V 69
+/svn/capsul/!svn/ver/45/trunk/doc/source/_templates/class_process.rst
+END
+class.rst
+K 25
+svn:wc:ra_dav:version-url
+V 61
+/svn/capsul/!svn/ver/37/trunk/doc/source/_templates/class.rst
+END
+function.rst
+K 25
+svn:wc:ra_dav:version-url
+V 64
+/svn/capsul/!svn/ver/45/trunk/doc/source/_templates/function.rst
+END
+layout.html
+K 25
+svn:wc:ra_dav:version-url
+V 63
+/svn/capsul/!svn/ver/59/trunk/doc/source/_templates/layout.html
+END
+nipype_class.rst
+K 25
+svn:wc:ra_dav:version-url
+V 68
+/svn/capsul/!svn/ver/37/trunk/doc/source/_templates/nipype_class.rst
+END
+class_with_call.rst
+K 25
+svn:wc:ra_dav:version-url
+V 71
+/svn/capsul/!svn/ver/45/trunk/doc/source/_templates/class_with_call.rst
+END

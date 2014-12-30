@@ -1,0 +1,132 @@
+{% extends "!layout.html" %}
+
+{% block htmltitle %}
+  {{ super() }}
+  <!-- htmltitle is before nature.css - we use this hack to load bootstrap first -->
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <link rel="stylesheet" href="{{ pathto('_static/css/bootstrap.min.css', 1) }}" media="screen" />
+  <link rel="stylesheet" href="{{ pathto('_static/css/bootstrap-responsive.css', 1) }}"/>
+{% endblock %}
+
+<!-- sidebar -->
+{% block extrahead %}
+  {% if pagename != 'index' %}
+   {% if theme_collapsiblesidebar|tobool %}
+       <script type="text/javascript" src="{{ pathto('_static/sidebar.js', 1) }}"></script>
+   {% endif %}
+  {% endif %}
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <script src="{{ pathto('_static/js/bootstrap.min.js', 1)}}" type="text/javascript"></script>
+
+  <script type="text/javascript">
+    $("div.buttonNext, div.buttonPrevious").hover(
+       function () {
+           $(this).css('background-color', '#FF9C34');
+       },
+       function () {
+           $(this).css('background-color', '#A7D6E2');
+       }
+    );
+    var bodywrapper = $('.bodywrapper');
+    var sidebarbutton = $('#sidebarbutton');
+    sidebarbutton.css({'height': '900px'});
+  </script>
+{% endblock %}
+
+<!-- page title -->
+    {% set title = 'Patchwork' %}
+
+<!-- header -->
+{% block header %}
+
+<div class="header-wrapper" style="padding-bottom: 3cm">
+  <div class="header">
+    <p class="logo">
+      <a href="{{ pathto('index') }}">
+        <img src="{{ pathto("_static/patchwork.png", 1) }}" alt="Logo"/>
+      </a>
+    </p>
+
+    {%- block navbar -%}
+    <div class="navbar">
+      <ul>
+        <li><a href="{{pathto('index')}}">Home</a></li>
+        <li><a href="{{pathto('installation')}}">Installation</a></li>
+        <li><a href="{{pathto('documentation')}}">Documentation</a></li>
+      </ul>
+    </div> <!-- end navbar -->
+    {%- endblock -%}
+  </div>
+</div>
+
+{%- if pagename == 'index' %}
+<!-- Banner -->
+<div class="container banner-container">
+
+  <div id="patchwork_synopsis" class="span6">
+    <h1>Patchwork</h1>
+    <h2>Powered by APWAL</h2>
+    <ul>Package that implement patch-based methods.</ul>
+  </div>
+
+</div>
+{%- endif %}
+
+{% endblock %}
+
+
+<!-- body -->
+{% block content %}
+<div class="content-wrapper">
+
+    <div class="sphinxsidebar">
+      <div class="sphinxsidebarwrapper">
+
+        <!-- info setup -->
+        {%- if pagename != "installation" %}
+          <p class="doc-version">
+           This documentation is for {{project}} <strong>version {{ release|e }}</strong>
+          </p>
+        {%- endif %}
+        <p class="citing">
+          If you use the software, please do not esitate to 
+          <a &mdash; <a href="https://github.com/apwal/patchwork.git">
+          Report a Bug</a>.
+        </p>
+
+      <!-- toc tree -->
+      {{ toc }}
+
+      </div>
+    </div>
+
+
+  <div class="content">
+    {%- block document %}
+      {{ super() }}
+    {%- endblock %}
+    <div class="clearer">
+    </div>
+  </div>
+  
+</div>
+{% endblock %}
+
+{% block relbar1 %}{% endblock %}
+{% block relbar2 %}{% endblock %}
+
+
+<!-- footer -->
+{%- block footer %}
+<div class="footer">
+{%- if show_copyright %}
+  {%- if hasdoc('copyright') %}
+    {% trans path=pathto('copyright'), copyright=copyright|e %}&copy; {{ copyright }}.{% endtrans %}
+  {%- else %}
+    {% trans copyright=copyright|e %}&copy; {{ copyright }}.{% endtrans %}
+  {%- endif %}
+{%- endif %}
+</div>
+{%- endblock %}
+
+

@@ -1,0 +1,29 @@
+K 25
+svn:wc:ra_dav:version-url
+V 60
+/svn/capsul/!svn/ver/37/trunk/doc/source/sphinxext/numpy_ext
+END
+docscrape_sphinx.py
+K 25
+svn:wc:ra_dav:version-url
+V 80
+/svn/capsul/!svn/ver/37/trunk/doc/source/sphinxext/numpy_ext/docscrape_sphinx.py
+END
+numpydoc.py
+K 25
+svn:wc:ra_dav:version-url
+V 72
+/svn/capsul/!svn/ver/37/trunk/doc/source/sphinxext/numpy_ext/numpydoc.py
+END
+__init__.py
+K 25
+svn:wc:ra_dav:version-url
+V 72
+/svn/capsul/!svn/ver/37/trunk/doc/source/sphinxext/numpy_ext/__init__.py
+END
+docscrape.py
+K 25
+svn:wc:ra_dav:version-url
+V 73
+/svn/capsul/!svn/ver/37/trunk/doc/source/sphinxext/numpy_ext/docscrape.py
+END
