@@ -29,8 +29,7 @@ class NLMDenoising(object):
     Attributes
     ----------
     to_denoise_array: array
-        an input n dimensional array to process containing the image
-        intensities.
+        an input n dimensional array to process containing the image intensities.
     spacing: array (n, )
         the image spacing.
     shape: array (x, y, z)

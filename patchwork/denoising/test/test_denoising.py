@@ -13,8 +13,8 @@ import unittest
 
 # Patchwork import
 from patchwork.denoising import NLMDenoising
-from patchwork.tools import get_patch as py_get_patch
-from patchwork.denoising.nlm_core import get_patch as c_get_patch
+from patchwork.tools.patch_creator import get_patch as py_get_patch
+from patchwork.tools.patch_core import get_patch as c_get_patch
 
 
 class TestDenoising(unittest.TestCase):
@@ -32,7 +32,6 @@ class TestDenoising(unittest.TestCase):
             "mask_array": None,
             "half_patch_size": 1,
             "half_spatial_bandwidth": 5,
-            "padding": -1,
             "central_point_strategy": "weight",
             "blockwise_strategy": "fastblockwise",
             "lower_mean_threshold": 0.95,

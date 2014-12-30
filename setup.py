@@ -20,16 +20,17 @@ from Cython.Distutils import build_ext
 
 
 cmdclass = {"build_ext": build_ext}
-
 ext_modules = []
 for modulename, other_sources, language in (
-        ("patchwork.denoising.nlm_core", [], "c"), ):
+        ("patchwork.tools.patch_core", [], "c"),
+        ("patchwork.denoising.nlm_core", [], "c")):
     pyx_src = os.path.join(*modulename.split(".")) + ".pyx"
     ext_modules.append(Extension(modulename, [pyx_src] + other_sources,
                                  language=language,
-                                 include_dirs=[numpy.get_include(), "src"],
-                                 extra_compile_args=['-fopenmp'],
-                                 extra_link_args=['-fopenmp']))
+                                 include_dirs=[numpy.get_include()],
+                                 libraries = [],
+                                 extra_compile_args=["-fopenmp"],
+                                 extra_link_args=["-fopenmp"]))
 
 
 release_info = {}

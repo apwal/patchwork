@@ -12,8 +12,9 @@ import numpy
 import unittest
 
 # Patchwork import
-from patchwork.tools import get_patch
+from patchwork.tools.patch_creator import get_patch
 from patchwork.tools import vector_to_array_index
+from patchwork.tools.patch_core import get_patch as c_get_patch
 
 
 class TestPatchCreation(unittest.TestCase):
@@ -23,15 +24,15 @@ class TestPatchCreation(unittest.TestCase):
         """ Test settings.
         """
         self.shape = (100, 100, 50)
-        self.array = numpy.ones(self.shape, dtype=numpy.int)
+        self.array = numpy.ones(self.shape, dtype=numpy.single)
         self.locations = [
             numpy.array([0, 0, 0]),
             numpy.array([3, 5, 2])
         ]
         self.full_patch_size = numpy.array([3, 3, 3], dtype=numpy.int)
         self.results = [
-            numpy.zeros(self.full_patch_size, dtype=numpy.int),
-            numpy.ones(self.full_patch_size, dtype=numpy.int)
+            numpy.zeros(self.full_patch_size, dtype=numpy.single),
+            numpy.ones(self.full_patch_size, dtype=numpy.single)
         ]            
 
     def test_patch_creation(self):
@@ -39,14 +40,16 @@ class TestPatchCreation(unittest.TestCase):
         """
         for index, target in zip(self.locations, self.results):
             patch = get_patch(index, self.array, self.full_patch_size)
+            cpatch = c_get_patch(index, self.array, self.full_patch_size)
             self.assertTrue(numpy.allclose(patch, target))
+            self.assertTrue(numpy.allclose(patch, cpatch))           
 
     def test_speed(self):
         """ Test the patch creation speed.
         """
         for vector_index in range(self.array.size):
             index = vector_to_array_index(vector_index, self.array)
-            patch = get_patch(index, self.array, self.full_patch_size)
+            patch = c_get_patch(index, self.array, self.full_patch_size)
 
 def test():
     """ Function to execute unitest

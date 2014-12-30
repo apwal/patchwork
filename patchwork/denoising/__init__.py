@@ -6,4 +6,6 @@
 # http://www.cecill.info/licences/Licence_CeCILL-B_V1-en.html for details.
 ################################################################################
 
-from nlm_denoising import NLMDenoising
+from .nlm_denoising import NLMDenoising
+
+__all__ = ["NLMDenoising"]
