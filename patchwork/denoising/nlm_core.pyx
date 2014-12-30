@@ -76,7 +76,7 @@ def get_average_patch(cnp.ndarray[float, ndim=3] to_denoise_array,
         # > iterators
         size_t i, j
         # > array iterators
-        size_t x, y, z
+        long x, y, z
         # > input image information
         size_t to_denoise_strides[3]
         size_t to_denoise_shape[3]
@@ -113,21 +113,27 @@ def get_average_patch(cnp.ndarray[float, ndim=3] to_denoise_array,
         neighbor_max_size *= (2 * half_spatial_bandwidth[i] + 1)
         to_denoise_shape[i] = to_denoise_array.shape[i]
     
-    # ToDo: Get the nb_of_search_selements
     search = <Element *>malloc(neighbor_max_size * sizeof(Element))
     for x from lower_bound[0] <= x <= upper_bound[0]:
         for y from lower_bound[1] <= y <= upper_bound[1]:
             for z from lower_bound[2] <= z <= upper_bound[2]:
+
+                # Do not consider the current point
                 if (x != array_index[0] or y != array_index[1] or
                     z != array_index[2]):
 
-                    # Add the new point in the search region
-                    search[nb_of_search_selements].index[0] = x
-                    search[nb_of_search_selements].index[1] = y
-                    search[nb_of_search_selements].index[2] = z
+                    # Check for image boudaries
+                    if (x >= 0 and y >= 0 and z >= 0 and 
+                        x < to_denoise_shape[0] and y < to_denoise_shape[1] and 
+                        z < to_denoise_shape[2]):
 
-                    # Keep trace of the search region size
-                    nb_of_search_selements += 1
+                        # Add the new point in the search region
+                        search[nb_of_search_selements].index[0] = x
+                        search[nb_of_search_selements].index[1] = y
+                        search[nb_of_search_selements].index[2] = z
+
+                        # Keep trace of the search region size
+                        nb_of_search_selements += 1
 
     # Get flatten arrays
     to_denoise_ptr = <float *>to_denoise_array.data

@@ -15,7 +15,7 @@ import scipy.signal
 from patchwork.tools import (
     get_patch, patch_distance, normalize_patch_size, get_patch_elements)
 from patchwork.tools import vector_to_array_index, array_to_vector_index
-from .nlm_core import get_average_patch
+from patchwork.denoising.nlm_core import get_average_patch
 
 # Get the logger
 logger = logging.getLogger(__file__)
@@ -216,7 +216,7 @@ class NLMDenoising(object):
                     # Check we are within the image boundaries
                     neighbor_index = numpy.asarray([x, y, z])
     
-                    if ((neighbor_index > 0).all() and
+                    if ((neighbor_index >= 0).all() and
                         (neighbor_index < self.shape).all() and
                         not (neighbor_index == index).all()):
 
@@ -334,7 +334,6 @@ class NLMDenoising(object):
 
                     # Update the result denoised patch
                     patch += neighbor_patch * weight
-
         else:
             # Use compiled code to do the same steps as the upper python version
             patch, wsum, wmax = get_average_patch(
@@ -389,7 +388,8 @@ class NLMDenoising(object):
         # Only consider the central patch voxel, do not apply any weighting
         # strategy
         if self.blockwise_strategy == "pointwise":
-            denoise_array[index] = patch[self.half_patch_size]
+            denoise_array[tuple(index)] = patch[tuple(self.half_patch_size)]
+            weights[tuple(index)] = weight
             
         # Consider all the patch spatial extension, and apply the patch
         # weight
@@ -499,11 +499,14 @@ if __name__ == "__main__":
 
     import nibabel
     to_denoise_array = numpy.random.randn(10, 10, 10)
-    to_denoise_array[..., :5] += 5
+    to_denoise_array += 10
+    to_denoise_array[5:, ...] -= 5
+    to_denoise_array = numpy.cast[numpy.single](to_denoise_array)
     image = nibabel.Nifti1Image(data=to_denoise_array, affine=numpy.eye(4))
     nibabel.save(image, "/home/grigis/tmp/noise.nii.gz")
-    nlm_filter = NLMDenoising(
-        to_denoise_array, (1, 1, 1), blockwise_strategy="blockwise")
+    nlm_filter = NLMDenoising(to_denoise_array, (1, 1, 1),
+                              blockwise_strategy="blockwise",
+                              half_spatial_bandwidth=3)
     denoise_array = nlm_filter.denoise()
     image = nibabel.Nifti1Image(data=denoise_array, affine=numpy.eye(4))
     nibabel.save(image, "/home/grigis/tmp/nlm.nii.gz")

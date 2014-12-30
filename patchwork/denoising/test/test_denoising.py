@@ -25,9 +25,8 @@ class TestDenoising(unittest.TestCase):
         """
         self.to_denoise_array = numpy.random.randn(10, 10, 10)
         self.to_denoise_array += 10
+        self.to_denoise_array[5:, ...] -= 5
         self.to_denoise_array = numpy.cast[numpy.single](self.to_denoise_array)
-        #self.to_denoise_array[..., :5] = 5
-        #self.to_denoise_array = numpy.ones((10, 10, 10))
         self.kwargs = {
             "spacing": (1, 1, 1),
             "mask_array": None,
@@ -47,27 +46,32 @@ class TestDenoising(unittest.TestCase):
         """ Test the denoised patch creation.
         """
         # Denoising parameters
-        self.kwargs["half_spatial_bandwidth"] = 1
+        self.kwargs["half_spatial_bandwidth"] = 3
         self.kwargs["use_optimized_strategy"] = False
         self.kwargs["central_point_strategy"] = "remove"
-        index = numpy.array((5, 5, 5), dtype=numpy.int)
+        indices = [
+            numpy.array((8, 8, 2), dtype=numpy.int),
+            numpy.array((5, 5, 5), dtype=numpy.int)
+        ]
 
-        # Without C speed up
-        self.kwargs["use_cython"] = False
-        nlm_filter = NLMDenoising(
-            self.to_denoise_array, **self.kwargs)
-        py_patch, py_weight = nlm_filter._get_denoised_patch(index)
+        # Test all indices
+        for index in indices:
 
-        # With C speed up
-        self.kwargs["use_cython"] = True
-        nlm_filter = NLMDenoising(
-            self.to_denoise_array, **self.kwargs)
-        c_patch, c_weight = nlm_filter._get_denoised_patch(index)
+            # Without C speed up
+            self.kwargs["use_cython"] = False
+            nlm_filter = NLMDenoising(
+                self.to_denoise_array, **self.kwargs)
+            py_patch, py_weight = nlm_filter._get_denoised_patch(index)
 
-        # Test equality
-        self.assertTrue(numpy.allclose(py_patch, c_patch))
-        self.assertTrue(numpy.allclose(py_weight, c_weight)) 
+            # With C speed up
+            self.kwargs["use_cython"] = True
+            nlm_filter = NLMDenoising(
+                self.to_denoise_array, **self.kwargs)
+            c_patch, c_weight = nlm_filter._get_denoised_patch(index)
 
+            # Test equality
+            self.assertTrue(numpy.allclose(py_patch, c_patch))
+            self.assertTrue(numpy.allclose(py_weight, c_weight)) 
 
     def test_patch_creation(self):
         """ Test the patch creation.
@@ -81,8 +85,15 @@ class TestDenoising(unittest.TestCase):
     def test_denoising(self):
         """ Test the nlm denoising.
         """
-        self.kwargs["blockwise_strategy"] = "blockwise"
-        if 0:
+        # Denoising parameters
+        self.kwargs["half_spatial_bandwidth"] = 5
+        self.kwargs["use_optimized_strategy"] = True
+        self.kwargs["central_point_strategy"] = "add"
+        self.kwargs["use_cython"] = True
+
+        # Test all denoising strategies
+        for strategy in ["pointwise", "fastblockwise", "blockwise"]:
+            self.kwargs["blockwise_strategy"] = strategy
             nlm_filter = NLMDenoising(
                 self.to_denoise_array, **self.kwargs)
             denoise_array = nlm_filter.denoise()
@@ -90,19 +101,27 @@ class TestDenoising(unittest.TestCase):
     def test_fast_denoising(self):
         """ Test the nlm denoising: python vs cython.
         """
-        self.kwargs["blockwise_strategy"] = "fastblockwise"
+        # Denoising parameters
+        self.kwargs["half_spatial_bandwidth"] = 3
+        self.kwargs["blockwise_strategy"] = "blockwise"
+        self.kwargs["use_optimized_strategy"] = False
+        self.kwargs["central_point_strategy"] = "remove"
+
+        # Without C speed up
+        self.kwargs["use_cython"] = False
+        nlm_filter = NLMDenoising(
+            self.to_denoise_array, **self.kwargs)
+        py_denoise_array = nlm_filter.denoise()
+
+        # With C speed up
         self.kwargs["use_cython"] = True
-        if 0:
-            nlm_filter = NLMDenoising(
-                self.to_denoise_array, **self.kwargs)
-            cython_denoise_array = nlm_filter.denoise()
-            self.kwargs["use_cython"] = False
-            nlm_filter = NLMDenoising(
-                self.to_denoise_array, **self.kwargs)
-            python_denoise_array = nlm_filter.denoise()
-            self.assertTrue(
-                numpy.allclose(python_denoise_array, cython_denoise_array ))
-    
+        nlm_filter = NLMDenoising(
+            self.to_denoise_array, **self.kwargs)
+        c_denoise_array = nlm_filter.denoise()
+
+        # Test equality
+        self.assertTrue(
+            numpy.allclose(py_denoise_array, c_denoise_array))
 
 
 def test():
