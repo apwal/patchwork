@@ -29,12 +29,7 @@ def vector_to_array_index(vector_index, array):
     array_index: array
         the corresponding vector index.
     """
-    offset = vector_index * array.itemsize
-    array_index = []
-    for stride in array.strides:
-        index, offset = divmod(offset, stride)
-        array_index.append(index)
-    return numpy.asarray(array_index)
+    return numpy.asarray(numpy.unravel_index(vector_index, array.shape))
 
 
 def array_to_vector_index(array_index, array):

@@ -48,10 +48,11 @@ class NLMDenoising(object):
     valid_cental_point_strategies = ["add", "remove", "weight"]
 
     def __init__(self, to_denoise_array, spacing, mask_array=None,
-                 half_patch_size=1, half_spatial_bandwidth=5, padding=-1,
+                 half_patch_size=1, half_spatial_bandwidth=5,
                  central_point_strategy="weight", blockwise_strategy="blockwise",
                  lower_mean_threshold=0.95, lower_variance_threshold=0.5,
-                 beta=1, use_optimized_strategy=True, use_cython=True):
+                 beta=1, use_optimized_strategy=True, use_cython=True,
+                 nb_of_threads=1):
         """ Initialize the non-local denoising class.
     
         Parameters
@@ -73,6 +74,8 @@ class NLMDenoising(object):
             smoothing parameter.
         use_cython: bool (default True)
             the cython to speed up the denoised patch creation.
+        nb_of_threads: int (default 1)
+            if cython code, defines the number of threads to use.
         """
       
         # Class parameters
@@ -87,6 +90,7 @@ class NLMDenoising(object):
         self.lower_mean_threshold = lower_mean_threshold
         self.lower_variance_threshold = lower_variance_threshold
         self.use_cython = use_cython
+        self.nb_of_threads = nb_of_threads
 
         # Intern parameters
         self.shape = self.to_denoise_array.shape
@@ -98,6 +102,9 @@ class NLMDenoising(object):
                 raise ValueError("Input mask array has invalid shape.")
         else:
             self.mask_array = numpy.ones(self.shape, dtype=numpy.int)
+        remaining_voxels = len(numpy.where(self.mask_array > 0)[0])
+        logger.info("Remaining voxels to process '%s' percent.",
+                    int(remaining_voxels / self.size * 100.))
 
         # Check that a valid denoising strategy has been selected.
         if self.blockwise_strategy not in self.valid_blockwise_strategies:
@@ -121,15 +128,6 @@ class NLMDenoising(object):
         (self.half_spatial_bandwidth, 
          self.full_spatial_bandwidth) = normalize_patch_size(
             half_spatial_bandwidth, self.spacing)
-
-        # > padding value
-        self.padding = padding
-        logger.info(
-            "Creating the mask image based on the padding value '%s'.", padding)
-        # ToDo
-        remaining_voxels = self.size
-        logger.info("Remaining voxels to process '%s' percent.",
-                    int(remaining_voxels / self.size * 100.))
 
         # > compute mean and variance images
         if self.use_optimized_strategy:             
@@ -339,7 +337,7 @@ class NLMDenoising(object):
             patch, wsum, wmax = get_average_patch(
                 self.to_denoise_array, index, self.half_spatial_bandwidth,
                 self.half_patch_size, self.full_patch_size, self.range_bandwidth,
-                nb_of_threads=1)
+                nb_of_threads=self.nb_of_threads)
 
         # Deal with the central patch based on the user parameters
         # > add the central patch
@@ -497,7 +495,14 @@ class NLMDenoising(object):
 
 if __name__ == "__main__":
 
+    # IO import
     import nibabel
+
+    # System import
+    import datetime
+
+
+    # Synthetic simulation
     to_denoise_array = numpy.random.randn(10, 10, 10)
     to_denoise_array += 10
     to_denoise_array[5:, ...] -= 5
@@ -510,6 +515,27 @@ if __name__ == "__main__":
     denoise_array = nlm_filter.denoise()
     image = nibabel.Nifti1Image(data=denoise_array, affine=numpy.eye(4))
     nibabel.save(image, "/home/grigis/tmp/nlm.nii.gz")
+
+    # Real data: this step is long, start a timer
+    start_time = datetime.datetime.now()
+    to_denoise_image = nibabel.load("/home/grigis/tmp/data.nii.gz")
+    array = to_denoise_image.get_data()[..., 0]
+    spacing = to_denoise_image.get_header().get_zooms()[:3]
+    affine = to_denoise_image.get_affine()
+    image = nibabel.Nifti1Image(data=array, affine=affine)
+    nibabel.save(image, "/home/grigis/tmp/data_noise.nii.gz")
+    nlm_filter = NLMDenoising(array, spacing,
+                              blockwise_strategy="blockwise",
+                              half_spatial_bandwidth=5,
+                              use_optimized_strategy=False)
+    denoise_array = nlm_filter.denoise()
+    image = nibabel.Nifti1Image(data=denoise_array, affine=affine)
+    nibabel.save(image, "/home/grigis/tmp/data_nlm.nii.gz")
+
+    # Stop the timer
+    delta_time = datetime.datetime.now() - start_time
+    print "\nDone in {0} seconds.".format(delta_time)
+
     
 
 
