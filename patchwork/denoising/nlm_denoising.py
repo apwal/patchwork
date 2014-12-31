@@ -72,8 +72,15 @@ class NLMDenoising(object):
         blockwise_strategy: str (default 'blockwise')
             the blockwise denoising strategy, one of 'pointwise', 'blockwise' or
             'fastblockwise'.
+        lower_mean_threshold: float (default 0.95)
+            threshold to select two patches depending on the mean values.
+        lower_variance_threshold: float (default 0.5)
+            threshold to select two patches depending on the variance values.
         beta: float
             smoothing parameter.
+        use_optimized_strategy: bool (default True)
+            use the mean and variance to discard some patches in the neighborhood
+            based on the mean and variance thresholds.
         use_cython: bool (default True)
             the cython to speed up the denoised patch creation.
         nb_of_threads: int (default 1)
@@ -230,7 +237,7 @@ class NLMDenoising(object):
         return search_elements
         
     def _check_speed(self, index1, index2):
-        """ Check the lower mean and varaince thresholds.
+        """ Check the lower mean and variance thresholds.
 
         Parameters
         ----------

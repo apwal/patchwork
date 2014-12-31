@@ -210,3 +210,85 @@ def get_average_patch(cnp.ndarray[float, ndim=3] to_denoise_array,
         free(weights)
 
     return patch, wsum, wmax
+
+
+###############################################################################
+# Intern functions
+###############################################################################
+
+@cython.boundscheck(False)
+@cython.wraparound(False)
+@cython.cdivision(True)
+cdef int _check_speed(size_t *array_index1,
+                 size_t *array_index2,
+                 size_t *array_strides,
+                 float *mean_ptr,
+                 float *variance_ptr,
+                 float lower_mean_threshold,
+                 float lower_variance_threshold) nogil:
+    """ Check the lower mean and variance thresholds.
+
+    Parameters
+    ----------
+    array_index1, array_index2: unsigned long[3]
+        two image index to test for processing speed.
+    array_strides: unsigned long[3]
+        the size of each array dimension.
+    mean_ptr: float[*]
+        the array containing the mean values.
+    variance_ptr: float[*]
+        the array containing the variance values.
+    lower_mean_threshold: float
+        threshold to select two patches depending on the mean values.
+    lower_variance_threshold: float
+        threshold to select two patches depending on the variance values.
+
+    Returns
+    -------
+    is_valid: int
+        the two index can be computed in the optimized settings if 1 is returned.
+    """
+    cdef:
+        float mean_value1, mean_value2
+        float variance_value1, variance_value2
+        float mean_likelihood, variance_likelihood
+
+    # Compute the likelihood between the two means
+    mean_value1 = _ptr_value_from_array_index(
+        mean_ptr, array_index1, array_strides, 3)
+    mean_value2 = _ptr_value_from_array_index(
+        mean_ptr, array_index2, array_strides, 3)
+    if mean_value2 == 0:
+        if mean_value1 == 0:
+            mean_likelihood = 1
+        else:
+            mean_likelihood = 0
+    else:
+        mean_likelihood = mean_value1 / mean_value2
+
+    # Check speed
+    if (mean_likelihood < lower_mean_threshold or 
+        mean_likelihood > 1. / lower_mean_threshold):
+        
+        return 0
+
+    # Compute the likelihood between the two variances
+    variance_value1 = _ptr_value_from_array_index(
+        variance_ptr, array_index1, array_strides, 3)
+    variance_value2 = _ptr_value_from_array_index(
+        variance_ptr, array_index2, array_strides, 3)
+    if variance_value2 == 0:
+        if variance_value1 == 0:
+            variance_likelihood = 1
+        else:
+            variance_likelihood = 0
+    else:
+        variance_likelihood = variance_value1 / variance_value2
+
+    # Check speed
+    if (variance_likelihood < lower_variance_threshold or 
+        variance_likelihood > 1. / lower_variance_threshold):
+        
+        return 0
+
+    return 1

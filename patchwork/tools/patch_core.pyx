@@ -300,9 +300,9 @@ cdef void _get_patch(size_t *array_index,
 @cython.wraparound(False)
 @cython.cdivision(True)
 cdef float _patch_distance(float *patch1,
-                                  float *patch2,
-                                  size_t patch_size,
-                                  size_t patch2_offset=0) nogil:
+                           float *patch2,
+                           size_t patch_size,
+                           size_t patch2_offset=0) nogil:
     """ Compute the distance between two patches.
 
     The metric used is the squared euclidean distance.
