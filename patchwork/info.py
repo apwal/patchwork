@@ -39,17 +39,17 @@ NUMPY_MIN_VERSION = '1.3'
 SCIPY_MIN_VERSION = '0.7.2'
 
 # Main setup parameters
-NAME = "patchwork"
-MAINTAINER = "apwal"
-MAINTAINER_EMAIL = "apwal"
+NAME = "python-patchwork"
+MAINTAINER = "me"
+MAINTAINER_EMAIL = "me"
 DESCRIPTION = description
 LONG_DESCRIPTION = long_description
-URL = "apwal"
+URL = "me"
 DOWNLOAD_URL = ""
 LICENSE = "CeCILL-B"
 CLASSIFIERS = classifiers
-AUTHOR = "apwal"
-AUTHOR_EMAIL = "apwal"
+AUTHOR = "me"
+AUTHOR_EMAIL = "me"
 PLATFORMS = "OS Independent"
 MAJOR = _version_major
 MINOR = _version_minor

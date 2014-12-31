@@ -12,9 +12,12 @@ import numpy
 import scipy.signal
 
 # Patchwork import
-from patchwork.tools import (
-    get_patch, patch_distance, normalize_patch_size, get_patch_elements)
-from patchwork.tools import vector_to_array_index, array_to_vector_index
+from patchwork.tools import get_patch
+from patchwork.tools import patch_distance
+from patchwork.tools import normalize_patch_size
+from patchwork.tools import get_patch_elements
+from patchwork.tools import patch_mean_variance
+from patchwork.tools import c_patch_mean_variance
 from patchwork.denoising.nlm_core import get_average_patch
 
 # Get the logger
@@ -129,8 +132,13 @@ class NLMDenoising(object):
             half_spatial_bandwidth, self.spacing)
 
         # > compute mean and variance images
-        if self.use_optimized_strategy:             
-            self._compute_mean_and_variance()
+        if self.use_optimized_strategy:
+            if self.use_cython:
+                self.mean_array, self.variance_array = c_patch_mean_variance(
+                    self.to_denoise_array, self.mask_array, self.full_patch_size)
+            else:     
+                self.mean_array, self.variance_array = patch_mean_variance(
+                    self.to_denoise_array, self.mask_array, self.full_patch_size)
 
         # > smooth parameter      
         self.range_bandwidth = self._compute_range_bandwidth(beta)
@@ -459,37 +467,6 @@ class NLMDenoising(object):
                     sigma, ei.size)
 
         return range_bandwidth
-
-    def _compute_mean_and_variance(self):
-        """ Compute the mean and the variance of the image to denoise.
-        """
-        # Information message
-        logger.info("Optimized mode, compute mean and variance image.") 
-
-        # Allocate the two arrays
-        self.mean = numpy.zeros(self.shape, dtype=numpy.single)
-        self.variance  = numpy.zeros(self.shape, dtype=numpy.single)
-
-        # Go through all the voxels
-        for vector_index in range(self.to_denoise_array.size):
-
-            # Convert vector index to array index
-            index = vector_to_array_index(vector_index, self.to_denoise_array)
-
-            # Check if have to compute this voxel
-            if self.mask_array[tuple(index)] > 0:
-
-                # Get the surrounding patch
-                patch = get_patch(
-                    index, self.to_denoise_array, self.full_patch_size)
-
-                # Compute the local mean and variance
-                local_mean = numpy.mean(patch)
-                local_variance = numpy.mean(patch**2) - local_mean**2
-
-                # Store the computed values
-                self.mean[tuple(index)] = local_mean
-                self.variance[tuple(index)] = local_variance
 
 
 if __name__ == "__main__":

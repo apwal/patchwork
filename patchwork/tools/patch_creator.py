@@ -10,6 +10,9 @@
 import logging
 import numpy
 
+# PATCHWORK import
+from .coordinate import vector_to_array_index
+
 # Get the logger
 logger = logging.getLogger(__file__)
 
@@ -153,5 +156,54 @@ def get_patch_elements(index, shape, half_patch_shape):
                 patch_elements.append(((cntx, cnty, cntz), (x, y, z)))
 
     return patch_elements
+
+
+def patch_mean_variance(array, mask_array, patch_shape):
+    """ Compute the mean and the variance of the image to denoise.
+
+    Parameters
+    ----------
+    array: array
+        the input array.
+    mask_array: array
+        a binary mask to apply during the mean and variance computation.
+    patch_shape: array
+        the patch shape.
+
+    Returns
+    -------
+    mean: array
+        the image mean.
+    variance: array
+        the image variance.
+    """
+    # Information message
+    logger.info("Optimized mode, compute mean and variance image.") 
+
+    # Allocate the two arrays
+    mean = numpy.zeros(array.shape, dtype=numpy.single)
+    variance  = numpy.zeros(array.shape, dtype=numpy.single)
+
+    # Go through all the voxels
+    for vector_index in range(array.size):
+
+        # Convert vector index to array index
+        index = vector_to_array_index(vector_index, array)
+
+        # Check if have to compute this voxel
+        if mask_array[tuple(index)] > 0:
+
+            # Get the surrounding patch
+            patch = get_patch(index, array, patch_shape)
+
+            # Compute the local mean and variance
+            local_mean = numpy.mean(patch)
+            local_variance = numpy.mean(patch**2) - local_mean**2
+
+            # Store the computed values
+            mean[tuple(index)] = local_mean
+            variance[tuple(index)] = local_variance
+
+    return mean, variance
 
 

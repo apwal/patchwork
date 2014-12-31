@@ -93,6 +93,94 @@ def get_patch(cnp.ndarray[long, ndim=1] index,
     return patch
 
 
+@cython.boundscheck(False)
+@cython.wraparound(False)
+@cython.cdivision(True)
+def patch_mean_variance(cnp.ndarray[float, ndim=3] array,
+                        cnp.ndarray[float, ndim=3] mask_array,
+                        patch_shape):
+    """ Compute the mean and the variance of the image to denoise.
+
+    Parameters
+    ----------
+    array: array
+        the input array.
+    mask_array: array
+        a binary mask to apply during the mean and variance computation.
+    patch_shape: array
+        the patch shape.
+
+    Returns
+    -------
+    mean: array
+        the image mean.
+    variance: array
+        the image variance.
+    """
+    cdef:
+        # Intern parameters
+        # > iterators
+        long x, y, z
+        long i
+        # > input image information
+        size_t array_strides[3]
+        size_t array_shape[3]
+        float *array_ptr
+        size_t index[3]
+        # > patch parameters
+        size_t half_patch_shape[3]
+        size_t patch_size=1
+        float *cpatch
+        float local_mean, local_variance
+
+    # Allocate the two output arrays
+    shape = (array.shape[0], array.shape[1], array.shape[2])
+    mean = numpy.zeros(shape, dtype=numpy.single)
+    variance  = numpy.zeros(shape, dtype=numpy.single)
+
+    # Get input image information
+    for i from 0 <= i < 3:
+        array_strides[i] = array.strides[i]
+        patch_size *= patch_shape[i]
+        array_shape[i] = array.shape[i]
+        half_patch_shape[i] = int((patch_shape[i] - 1) / 2)
+
+    # Allocate the patch
+    cpatch = <float *>malloc(patch_size * sizeof(float))
+
+    # Get flatten arrays
+    array_ptr = <float *>array.data
+
+    # Go through all the voxels
+    for x from 0 <= x < array_shape[0]:
+        for y from 0 <= y < array_shape[1]:
+            for z from 0 <= z < array_shape[2]:
+
+                # Check if have to compute this voxel
+                if mask_array[x, y, z] > 0:
+
+                    # Get the surrounding patch
+                    index[0] = x; index[1] = y; index[2] = z
+                    _get_patch(index, array_ptr, array_shape, array_strides, 
+                               half_patch_shape, patch_size, cpatch)
+
+                    # Compute the local mean and variance
+                    local_mean = 0
+                    local_variance = 0
+                    for i from 0 <= i < patch_size:
+                        local_mean += cpatch[i]
+                        local_variance += cpatch[i] * cpatch[i]
+                    local_mean /= float(patch_size)
+                    local_variance /= float(patch_size)
+                    local_varaince -= local_mean * local_mean
+
+                    # Store the computed values
+                    mean[x, y, z] = local_mean
+                    variance[x, y, z] = local_variance
+
+    return mean, variance
+
+
 ###############################################################################
 # Intern functions
 ###############################################################################

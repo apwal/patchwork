@@ -10,12 +10,16 @@ from .patch_creator import patch_distance
 from .patch_creator import get_patch
 from .patch_creator import get_patch_elements
 from .patch_creator import normalize_patch_size
+from .patch_creator import patch_mean_variance
 
 from .patch_core import get_patch as c_get_patch
+from .patch_core import patch_mean_variance as c_patch_mean_variance
 
 from .coordinate import vector_to_array_index
 from .coordinate import array_to_vector_index
 
+
 __all__ = ["get_patch", "c_get_patch", "patch_distance", "get_patch_elements",
            "normalize_patch_size", "vector_to_array_index",
-           "array_to_vector_index"]
+           "array_to_vector_index", "patch_mean_variance",
+            "c_patch_mean_variance"]
