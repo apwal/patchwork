@@ -46,6 +46,11 @@ def get_average_patch(cnp.ndarray[float, ndim=3] to_denoise_array,
                       cnp.ndarray[long, ndim=1] half_patch_size,
                       cnp.ndarray[long, ndim=1] full_patch_size,
                       float range_bandwidth,
+                      cnp.ndarray[float, ndim=3] mean_array=None,
+                      cnp.ndarray[float, ndim=3] variance_array=None,
+                      use_optimized_strategy=True,
+                      float lower_mean_threshold=0.95,
+                      float lower_variance_threshold=0.5,
                       int nb_of_threads=1):
     """ Method that compute the denoised patch at a specific location.
 
@@ -63,6 +68,17 @@ def get_average_patch(cnp.ndarray[float, ndim=3] to_denoise_array,
         the size of the patch array.
     range_bandwidth: float
         the global bandwidth range.
+    mean_array: 3-dim array (default None)
+        the image mean values.
+    variance_array: 3-dim array (default None)
+        the image variance values.
+    use_optimized_strategy: bool (default True)
+        use the mean and variance to discard some patches in the neighborhood
+        based on the mean and variance thresholds.
+    lower_mean_threshold: float (default 0.95)
+        threshold to select two patches depending on the mean values.
+    lower_variance_threshold: float (default 0.5)
+        threshold to select two patches depending on the variance values.
     nb_of_threads: int (default 1)
         the number of threads to use.
 
@@ -85,6 +101,8 @@ def get_average_patch(cnp.ndarray[float, ndim=3] to_denoise_array,
         size_t to_denoise_shape[3]
         float *to_denoise_ptr
         size_t *index_ptr
+        float *mean_ptr
+        float *variance_ptr
         # > patch parameters
         int lower_bound[3]
         int upper_bound[3]
@@ -96,6 +114,7 @@ def get_average_patch(cnp.ndarray[float, ndim=3] to_denoise_array,
         float *central_patch
         float *neighbor_patches
         float *weights
+        int is_valid_neighbor
         # > maximum weight of patches
         float wmax = 0
         # > sum of weights: used for normalization
@@ -105,6 +124,17 @@ def get_average_patch(cnp.ndarray[float, ndim=3] to_denoise_array,
 
     # Allocate output patch
     patch = numpy.zeros(full_patch_size, dtype=numpy.single)
+
+    # Get flatten arrays
+    to_denoise_ptr = <float *>to_denoise_array.data
+    half_patch_size_ptr = <size_t *>half_patch_size.data
+    index_ptr = <size_t *>array_index.data
+    if use_optimized_strategy == 1:
+        if mean_array is None or variance_array is None:
+            use_optimized_strategy = 0
+        else:
+            mean_ptr = <float *>mean_array.data
+            variance_ptr = <float *>variance_array.data
    
     # Create an appropriate search region around the current voxel index
     # Get input image information
@@ -135,13 +165,18 @@ def get_average_patch(cnp.ndarray[float, ndim=3] to_denoise_array,
                         search[nb_of_search_selements].index[1] = y
                         search[nb_of_search_selements].index[2] = z
 
-                        # Keep trace of the search region size
-                        nb_of_search_selements += 1
+                        # Optimize the speed of the patch search
+                        if use_optimized_strategy: 
+                            is_valid_neighbor = _check_speed(
+                                index_ptr, search[nb_of_search_selements].index,
+                                to_denoise_strides, mean_ptr, variance_ptr,
+                                lower_mean_threshold, lower_variance_threshold)
+                        else:
+                            is_valid_neighbor = 1
 
-    # Get flatten arrays
-    to_denoise_ptr = <float *>to_denoise_array.data
-    half_patch_size_ptr = <size_t *>half_patch_size.data
-    index_ptr = <size_t *>array_index.data
+                        # Keep trace of the search region size
+                        if is_valid_neighbor == 1:
+                            nb_of_search_selements += 1
 
     # Get patch around the current location.       
     central_patch = <float *>malloc(patch_size * sizeof(float))
@@ -161,16 +196,6 @@ def get_average_patch(cnp.ndarray[float, ndim=3] to_denoise_array,
         for i in parallel.prange(0, nb_of_search_selements, schedule="static",
                                  num_threads=nb_of_threads):
 
-            # Optimize the speed of the patch search
-            #if self.use_optimized_strategy: 
-            #    is_valid_neighbor = self._check_speed(
-            #        tuple(index), tuple(neighbor_index))
-            #else:
-            #    is_valid_neighbor = True
-
-            # If we are dealing with a valid neighbor
-            #if is_valid_neighbor:
-
             # Create the neighbor patch
             _get_patch(search[i].index, to_denoise_ptr, to_denoise_shape, 
                        to_denoise_strides, half_patch_size_ptr, patch_size,
@@ -179,7 +204,8 @@ def get_average_patch(cnp.ndarray[float, ndim=3] to_denoise_array,
             # Compute the weight associated to the distance between the
             # central and neighbor patches
             weights[i] = exp(- _patch_distance(
-                central_patch, neighbor_patches, patch_size, i) / range_bandwidth)
+                central_patch, neighbor_patches, patch_size, i) /
+                range_bandwidth)
 
         # Keep trace of the maximum weight and compute the weight sum
         # Get the result denoised patch
@@ -220,12 +246,12 @@ def get_average_patch(cnp.ndarray[float, ndim=3] to_denoise_array,
 @cython.wraparound(False)
 @cython.cdivision(True)
 cdef int _check_speed(size_t *array_index1,
-                 size_t *array_index2,
-                 size_t *array_strides,
-                 float *mean_ptr,
-                 float *variance_ptr,
-                 float lower_mean_threshold,
-                 float lower_variance_threshold) nogil:
+                      size_t *array_index2,
+                      size_t *array_strides,
+                      float *mean_ptr,
+                      float *variance_ptr,
+                      float lower_mean_threshold,
+                      float lower_variance_threshold) nogil:
     """ Check the lower mean and variance thresholds.
 
     Parameters

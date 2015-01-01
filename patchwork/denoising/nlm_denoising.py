@@ -18,6 +18,7 @@ from patchwork.tools import normalize_patch_size
 from patchwork.tools import get_patch_elements
 from patchwork.tools import patch_mean_variance
 from patchwork.tools import c_patch_mean_variance
+from patchwork.tools import vector_to_array_index
 from patchwork.denoising.nlm_core import get_average_patch
 
 # Get the logger
@@ -142,7 +143,9 @@ class NLMDenoising(object):
         if self.use_optimized_strategy:
             if self.use_cython:
                 self.mean_array, self.variance_array = c_patch_mean_variance(
-                    self.to_denoise_array, self.mask_array, self.full_patch_size)
+                    self.to_denoise_array, 
+                    numpy.cast[numpy.single](self.mask_array),
+                    self.full_patch_size)
             else:     
                 self.mean_array, self.variance_array = patch_mean_variance(
                     self.to_denoise_array, self.mask_array, self.full_patch_size)
@@ -250,13 +253,13 @@ class NLMDenoising(object):
             the two index can be computed in the optimized settings.
         """
         # Compute the likelihood between the two means
-        if self.mean[index2] == 0:
-            if self.mean[index1] == 0:
+        if self.mean_array[index2] == 0:
+            if self.mean_array[index1] == 0:
                 mean_likelihood = 1
             else:
                 mean_likelihood = 0
         else:
-            mean_likelihood = self.mean[index1] / self.mean[index2]
+            mean_likelihood = self.mean_array[index1] / self.mean_array[index2]
 
         # Check speed
         if (mean_likelihood < self.lower_mean_threshold or 
@@ -265,13 +268,13 @@ class NLMDenoising(object):
             return False
 
         # Compute the likelihood between the two variances
-        if self.variance[index2] == 0:
-            if self.variance[index1] == 0:
+        if self.variance_array[index2] == 0:
+            if self.variance_array[index1] == 0:
                 variance_likelihood = 1
             else:
                 variance_likelihood = 0
         else:
-            variance_likelihood = self.variance[index1] / self.variance[index2]
+            variance_likelihood = self.variance_array[index1] / self.variance_array[index2]
 
         # Check speed
         if (variance_likelihood < self.lower_variance_threshold or 
@@ -351,7 +354,9 @@ class NLMDenoising(object):
             patch, wsum, wmax = get_average_patch(
                 self.to_denoise_array, index, self.half_spatial_bandwidth,
                 self.half_patch_size, self.full_patch_size, self.range_bandwidth,
-                nb_of_threads=self.nb_of_threads)
+                self.mean_array, self.variance_array, self.use_optimized_strategy,
+                self.lower_mean_threshold, self.lower_variance_threshold,
+                self.nb_of_threads)
 
         # Deal with the central patch based on the user parameters
         # > add the central patch

@@ -123,6 +123,32 @@ class TestDenoising(unittest.TestCase):
             numpy.allclose(py_denoise_array, c_denoise_array))
 
 
+    def test_optimized_denoising(self):
+        """ Test the nlm optimized denoising: python vs cython.
+        """
+        # Denoising parameters
+        self.kwargs["half_spatial_bandwidth"] = 3
+        self.kwargs["blockwise_strategy"] = "blockwise"
+        self.kwargs["use_optimized_strategy"] = True
+        self.kwargs["central_point_strategy"] = "remove"
+
+        # Without C speed up
+        self.kwargs["use_cython"] = False
+        nlm_filter = NLMDenoising(
+            self.to_denoise_array, **self.kwargs)
+        py_denoise_array = nlm_filter.denoise()
+
+        # With C speed up
+        self.kwargs["use_cython"] = True
+        nlm_filter = NLMDenoising(
+            self.to_denoise_array, **self.kwargs)
+        c_denoise_array = nlm_filter.denoise()
+
+        # Test equality
+        self.assertTrue(
+            numpy.allclose(py_denoise_array, c_denoise_array))
+
+
 def test():
     """ Function to execute unitest
     """

@@ -29,7 +29,11 @@ for modulename, other_sources, language in (
                                  language=language,
                                  include_dirs=[numpy.get_include()],
                                  libraries = [],
-                                 extra_compile_args=["-fopenmp"],
+                                 # prevent `#warning` messages from being
+                                 # treated as an error: -Wno-cpp
+                                 extra_compile_args=["-fopenmp", "-Wno-unused",
+                                                     "-Wno-maybe-uninitialized",
+                                                     "-Wno-cpp"],
                                  extra_link_args=["-fopenmp"]))
 
 

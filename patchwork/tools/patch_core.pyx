@@ -172,7 +172,7 @@ def patch_mean_variance(cnp.ndarray[float, ndim=3] array,
                         local_variance += cpatch[i] * cpatch[i]
                     local_mean /= float(patch_size)
                     local_variance /= float(patch_size)
-                    local_varaince -= local_mean * local_mean
+                    local_variance -= local_mean * local_mean
 
                     # Store the computed values
                     mean[x, y, z] = local_mean

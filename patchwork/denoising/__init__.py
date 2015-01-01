@@ -7,5 +7,6 @@
 ################################################################################
 
 from .nlm_denoising import NLMDenoising
+from .nlm_core import get_average_patch as c_get_average_patch
 
-__all__ = ["NLMDenoising"]
+__all__ = ["NLMDenoising", "c_get_average_patch"]
